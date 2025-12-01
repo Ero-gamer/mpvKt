@@ -5,14 +5,14 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Allows manual runs
+  workflow_dispatch:
 
 jobs:
-  build-unsigned:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -21,50 +21,47 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3  # Installs SDK tools like aapt, zipalign
+      - name: Setup Android SDK (for zipalign)
+        uses: android-actions/setup-android@v3
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Clean and build universal unsigned release APK
-        run: |
-          ./gradlew clean
-          ./gradlew assembleRelease --stacktrace --info  # Use assembleRelease for unsigned universal
+      - name: Build unsigned universal APK
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Extract ARMv7a-only APK
+      - name: Create ARMv7a-only unsigned APK
         run: |
-          # Paths (adjust if your output differs; check logs for exact filename)
-          APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
-          TEMP_DIR=$(mktemp -d)
-          
-          # Unzip the APK
-          unzip -q "$APK_PATH" -d "$TEMP_DIR"
-          
-          # Remove non-ARMv7a native libs (keep only armeabi-v7a)
-          rm -rf "$TEMP_DIR/lib"/*
-          mv "$TEMP_DIR/lib/armeabi-v7a" "$TEMP_DIR/lib/armeabi-v7a" || echo "Warning: No armeabi-v7a folder found"
-          rm -rf "$TEMP_DIR/lib/"*  # Remove other ABI folders (arm64-v8a, x86, etc.)
-          
-          # Re-zip into new APK (unsigned, ARMv7a-only)
-          cd "$TEMP_DIR"
-          zip -q -r ../mpvkt-armv7a-only-unsigned.apk .
+          # Find the unsigned APK that Gradle just built
+          UNSIGNED_APK=$(find app/build/outputs/apk -name "*-unsigned.apk" | head -n1)
+          echo "Original unsigned APK: $UNSIGNED_APK"
+
+          # Extract it
+          mkdir temp_apk
+          unzip -q "$UNSIGNED_APK" -d temp_apk
+
+          # Keep only armeabi-v7a native libraries (delete others)
+          if [ -d temp_apk/lib ]; then
+            find temp_apk/lib -mindepth 1 -maxdepth 1 ! -name 'armeabi-v7a' -exec rm -rf {} +
+          else
+            echo "No lib folder found – probably no native libraries at all"
+          fi
+
+          # Re-package as ARMv7a-only APK
+          cd temp_apk
+          zip -qr ../mpvkt-armv7a-unsigned.apk .
           cd ..
-          
-          # Optional: Align with zipalign for better performance (not required for unsigned)
-          zipalign -f -v 4 mpvkt-armv7a-only-unsigned.apk mpvkt-armv7a-only-aligned.apk
-          
-          # Verify size (should be smaller than original)
-          ls -la *.apk
-        shell: bash
-        if-no-files-found: error
+
+          # Optional: align it (recommended before installing)
+          zipalign -f 4 mpvkt-armv7a-unsigned.apk mpvkt-armv7a-unsigned-aligned.apk
+
+          # Show result
+          ls -lh *.apk
 
       - name: Upload ARMv7a-only unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: mpvkt-armv7a-only-unsigned.apk
+          name: mpvkt-armv7a-unsigned
           path: |
-            mpvkt-armv7a-only-aligned.apk
-            mpvkt-armv7a-only-unsigned.apk  # Both versions for flexibility
-          if-no-files-found: error
-          retention-days: 30
+            mpvkt-armv7a-unsigned.apk
+            mpvkt-armv7a-unsigned-aligned.apk
