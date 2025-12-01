@@ -1,4 +1,4 @@
-name: Build ARMv7a-only Unsigned APK
+name: Build mpvKt (armv7a)
 
 on:
   push:
@@ -10,26 +10,40 @@ on:
 jobs:
   build-armv7a:
     runs-on: ubuntu-latest
+    name: Build for armv7a
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: 17
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      - name: Download Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
 
-      # This is the CORRECT task that exists in mpvKt
-      - name: Build armeabi-v7a unsigned APK
-        run: ./gradlew :app:assembleMpvKtArmeabiV7aRelease
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      # The file is always created at this exact path
-      - name: Upload artifact
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build (release, all ABIs)
+        run: ./gradlew assembleRelease
+
+      - name: List APKs (debug step)
+        run: |
+          ls -lhR app/build/outputs/apk
+
+      - name: Upload release APK artifact (armeabi-v7a only)
         uses: actions/upload-artifact@v4
         with:
-          name: mpvkt-armv7a-unsigned.apk
-          path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/mpvKt-armeabi-v7a-release-unsigned.apk
+          name: mpvKt-armv7a-release
+          path: |
+            app/build/outputs/apk/release/*armeabi-v7a*.apk
+            app/build/outputs/apk/*/release/*armeabi-v7a*.apk
+            app/build/outputs/apk/*armeabi-v7a*/*.apk
