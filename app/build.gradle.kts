@@ -28,9 +28,6 @@ android {
       useSupportLibrary = true
     }
 
-ndk {
-    abiFilters 'armeabi-v7a'
-}
     buildConfigField("String", "GIT_SHA", "\"${getCommitSha()}\"")
     buildConfigField("int", "GIT_COUNT", getCommitCount())
   }
@@ -38,7 +35,7 @@ ndk {
     abi {
       isEnable = true
       reset()
-      include("armeabi-v7a")
+      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
       isUniversalApk = true
     }
   }
