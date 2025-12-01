@@ -1,57 +1,70 @@
-name: Build ARMv7a Binary
+name: Build Unsigned ARMv7a APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
+  workflow_dispatch:  # Allows manual runs
 
 jobs:
-  build:
+  build-unsigned:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
-    - name: Build with Gradle for ARMv7a
-      run: ./gradlew assembleMpvKtArmeabiV7aRelease
-
-    - name: Upload ARMv7a APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: mpvkt-armv7a-release.apk
-        path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/*.apk
-        retention-days: 30        uses: actions/upload-artifact@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          name: app-arm64-v8a-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
-      - name: Upload app-armeabi-v7a Artifact
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3  # Installs SDK tools like aapt, zipalign
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Clean and build universal unsigned release APK
+        run: |
+          ./gradlew clean
+          ./gradlew assembleRelease --stacktrace --info  # Use assembleRelease for unsigned universal
+
+      - name: Extract ARMv7a-only APK
+        run: |
+          # Paths (adjust if your output differs; check logs for exact filename)
+          APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
+          TEMP_DIR=$(mktemp -d)
+          
+          # Unzip the APK
+          unzip -q "$APK_PATH" -d "$TEMP_DIR"
+          
+          # Remove non-ARMv7a native libs (keep only armeabi-v7a)
+          rm -rf "$TEMP_DIR/lib"/*
+          mv "$TEMP_DIR/lib/armeabi-v7a" "$TEMP_DIR/lib/armeabi-v7a" || echo "Warning: No armeabi-v7a folder found"
+          rm -rf "$TEMP_DIR/lib/"*  # Remove other ABI folders (arm64-v8a, x86, etc.)
+          
+          # Re-zip into new APK (unsigned, ARMv7a-only)
+          cd "$TEMP_DIR"
+          zip -q -r ../mpvkt-armv7a-only-unsigned.apk .
+          cd ..
+          
+          # Optional: Align with zipalign for better performance (not required for unsigned)
+          zipalign -f -v 4 mpvkt-armv7a-only-unsigned.apk mpvkt-armv7a-only-aligned.apk
+          
+          # Verify size (should be smaller than original)
+          ls -la *.apk
+        shell: bash
+        if-no-files-found: error
+
+      - name: Upload ARMv7a-only unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-armeabi-v7a-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
-      - name: Upload app-universal Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-universal-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-universal-release-unsigned.apk
-      - name: Upload app-x86 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-x86-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-x86-release-unsigned.apk
-      - name: Upload app-x86_64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-x86_64-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-x86_64-release-unsigned.apk
+          name: mpvkt-armv7a-only-unsigned.apk
+          path: |
+            mpvkt-armv7a-only-aligned.apk
+            mpvkt-armv7a-only-unsigned.apk  # Both versions for flexibility
+          if-no-files-found: error
+          retention-days: 30
