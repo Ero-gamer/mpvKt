@@ -21,16 +21,23 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      # This is the only command that reliably produces a single-ABI unsigned APK in mpvKt
-      - name: Build armeabi-v7a unsigned APK
-        run: ./gradlew packageMpvKtArmeabiV7aReleaseUnsigned
+      - name: List available tasks (for debugging)
+        run: ./gradlew tasks --all | grep -E "(assemble|package).*MpvKt.*(Armeabi|Release|Unsigned)"
 
-      # The file is always created here in the original mpvKt project
+      - name: Build ARMv7a unsigned APK
+        run: |
+          # Force ABI filter via properties (ensures ARMv7a-only)
+          ./gradlew assembleMpvKtArmeabiV7aRelease -Pandroid.injected.signing.enabled=false --stacktrace --info
+
       - name: Upload ARMv7a unsigned APK
         uses: actions/upload-artifact@v4
         with:
           name: mpvkt-armv7a-unsigned.apk
-          path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/*-unsigned.apk
+          path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/app-mpvkt-armeabi-v7a-release.apk
+          retention-days: 30
