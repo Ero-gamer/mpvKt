@@ -8,9 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-armv7a:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,23 +20,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: List available tasks (for debugging)
-        run: ./gradlew tasks --all | grep -E "(assemble|package).*MpvKt.*(Armeabi|Release|Unsigned)"
+      # This is the CORRECT task that exists in mpvKt
+      - name: Build armeabi-v7a unsigned APK
+        run: ./gradlew :app:assembleMpvKtArmeabiV7aRelease
 
-      - name: Build ARMv7a unsigned APK
-        run: |
-          # Force ABI filter via properties (ensures ARMv7a-only)
-          ./gradlew assembleMpvKtArmeabiV7aRelease -Pandroid.injected.signing.enabled=false --stacktrace --info
-
-      - name: Upload ARMv7a unsigned APK
+      # The file is always created at this exact path
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mpvkt-armv7a-unsigned.apk
-          path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/app-mpvkt-armeabi-v7a-release.apk
-          retention-days: 30
+          path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/mpvKt-armeabi-v7a-release-unsigned.apk
