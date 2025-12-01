@@ -1,4 +1,4 @@
-name: Build Unsigned ARMv7a APK
+name: Build ARMv7a-only Unsigned APK
 
 on:
   push:
@@ -12,56 +12,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: 17
 
-      - name: Setup Android SDK (for zipalign)
-        uses: android-actions/setup-android@v3
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Build unsigned universal APK
-        run: ./gradlew assembleRelease --stacktrace
-
-      - name: Create ARMv7a-only unsigned APK
-        run: |
-          # Find the unsigned APK that Gradle just built
-          UNSIGNED_APK=$(find app/build/outputs/apk -name "*-unsigned.apk" | head -n1)
-          echo "Original unsigned APK: $UNSIGNED_APK"
-
-          # Extract it
-          mkdir temp_apk
-          unzip -q "$UNSIGNED_APK" -d temp_apk
-
-          # Keep only armeabi-v7a native libraries (delete others)
-          if [ -d temp_apk/lib ]; then
-            find temp_apk/lib -mindepth 1 -maxdepth 1 ! -name 'armeabi-v7a' -exec rm -rf {} +
-          else
-            echo "No lib folder found – probably no native libraries at all"
-          fi
-
-          # Re-package as ARMv7a-only APK
-          cd temp_apk
-          zip -qr ../mpvkt-armv7a-unsigned.apk .
-          cd ..
-
-          # Optional: align it (recommended before installing)
-          zipalign -f 4 mpvkt-armv7a-unsigned.apk mpvkt-armv7a-unsigned-aligned.apk
-
-          # Show result
-          ls -lh *.apk
+      - name: Build only armeabi-v7a unsigned APK (no zip/unzip needed)
+        run: ./gradlew assembleRelease -Pandroid.injected.build.abi=armeabi-v7a
 
       - name: Upload ARMv7a-only unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: mpvkt-armv7a-unsigned
-          path: |
-            mpvkt-armv7a-unsigned.apk
-            mpvkt-armv7a-unsigned-aligned.apk
+          name: mpvkt-armv7a-unsigned.apk
+          path: app/build/outputs/apk/release/*-release-unsigned.apk
