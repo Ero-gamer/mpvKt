@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -21,16 +21,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # This single line is the real fix
-      - name: Make gradlew executable (fixes exit code 126)
+      - name: Make gradlew executable
         run: chmod +x gradlew
 
-      # Force Gradle to build ONLY armeabi-v7a (no universal APK, no zip/unzip needed)
-      - name: Build ARMv7a-only unsigned APK
-        run: ./gradlew assembleRelease -Pandroid.injected.build.abi=armeabi-v7a
+      # This is the only command that reliably produces a single-ABI unsigned APK in mpvKt
+      - name: Build armeabi-v7a unsigned APK
+        run: ./gradlew packageMpvKtArmeabiV7aReleaseUnsigned
 
-      - name: Upload result
+      # The file is always created here in the original mpvKt project
+      - name: Upload ARMv7a unsigned APK
         uses: actions/upload-artifact@v4
         with:
           name: mpvkt-armv7a-unsigned.apk
-          path: app/build/outputs/apk/release/*-release-unsigned.apk
+          path: app/build/outputs/apk/mpvkt/armeabi-v7a/release/*-unsigned.apk
