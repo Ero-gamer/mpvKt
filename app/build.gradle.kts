@@ -28,6 +28,9 @@ android {
       useSupportLibrary = true
     }
 
+ndk {
+    abiFilters 'armeabi-v7a'
+}
     buildConfigField("String", "GIT_SHA", "\"${getCommitSha()}\"")
     buildConfigField("int", "GIT_COUNT", getCommitCount())
   }
